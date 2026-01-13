@@ -6,7 +6,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   // CRÍTICO: O nome do repositório deve estar entre barras para evitar erro 404 e tela branca
-  base: "/bussola-tributaria-reforma/", 
+  base: "/TributoPrime-Radar/", 
   server: {
     port: 3000,
   },
