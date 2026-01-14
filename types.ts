@@ -13,20 +13,19 @@ export interface TaxData {
   accumulatedRevenue: number;
   sector: BusinessSector;
   simplesAnnex: number; 
-  customSimplesRate?: number; // Alíquota efetiva personalizada pelo usuário
-}
-
-export interface B2BSensitivity {
-  scenario: string;
-  simplesStrategicImpact: string;
-  reformStrategicImpact: string;
-  bestChoice: string;
+  customSimplesRate?: number;
 }
 
 export interface StrategicPoint {
   title: string;
   description: string;
   impactLevel: 'ALTO' | 'MÉDIO' | 'BAIXO';
+}
+
+export interface LegalOptimization {
+  title: string;
+  howToImplement: string;
+  benefitExpected: string;
 }
 
 export interface ComparisonResult {
@@ -37,12 +36,14 @@ export interface ComparisonResult {
   annualSavings: number;
   recommendation: 'SIMPLES' | 'REFORMA';
   analysis: string;
+  technicalDetails: string; // Novo campo para detalhamento técnico
   ibsAmount: number;
   cbsAmount: number;
   creditsTaken: number;
   effectiveRateSimples: number;
   effectiveRateReform: number;
-  b2bAnalysis: B2BSensitivity[];
   strategicRoadmap: StrategicPoint[];
+  legalOptimizations: LegalOptimization[]; // Novo campo para dicas de elisão fiscal
   healthScore: number; 
+  sector: BusinessSector;
 }
