@@ -1,31 +1,24 @@
 
-import { GoogleGenAI } from "@google/genai";
 import { TaxData, ComparisonResult, BusinessSector } from "../types";
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const calculateTaxComparison = async (data: TaxData): Promise<ComparisonResult> => {
   const prompt = `
-    Aja como um Auditor Fiscal e Consultor Tributário Sênior especializado na PEC 45/2019 (Reforma Tributária). 
-    Sua missão é entregar um parecer técnico de ALTA DENSIDADE para uma empresa do setor de ${data.sector}.
+    Aja como um Auditor Fiscal e Consultor Tributário Sênior. Sua missão é entregar um parecer técnico de ALTA DENSIDADE, OBJETIVO e ROBUSTO para uma empresa do setor de ${data.sector}.
 
     DADOS OPERACIONAIS:
-    - Faturamento Mensal: R$ ${data.monthlyRevenue}
-    - Compras/Insumos: R$ ${data.monthlyPurchases} (Geram crédito pleno de 27,5% no IBS/CBS)
-    - Folha de Pagamento: R$ ${data.payroll} (Não gera crédito direto no modelo de valor adicionado)
-    - Outros Custos Fixos (Energia, Aluguel PJ, Telecom): R$ ${data.otherInputs} (Geram crédito pleno)
-    - Alíquota Efetiva Atual no Simples: ${data.customSimplesRate}%
+    - Receita Bruta Mensal: R$ ${data.monthlyRevenue}
+    - Compras/Insumos: R$ ${data.monthlyPurchases}
+    - Folha de Pagamento: R$ ${data.payroll}
+    - Custos Fixos Creditáveis (Aluguel PJ, Energia, etc): R$ ${data.otherInputs}
+    - Alíquota Simples Atual: ${data.customSimplesRate}%
 
     REQUISITOS DA ANÁLISE:
-    1. EXATIDÃO MATEMÁTICA: Calcule o IBS/CBS usando a alíquota padrão de 27,5% sobre o faturamento, subtraindo integralmente os créditos sobre compras e custos operacionais.
-    2. PARECER TÉCNICO ("analysis"): Explique a transição do modelo de "cumulatividade" para "não-cumulatividade plena". Compare o custo de oportunidade.
-    3. DETALHAMENTO ("technicalDetails"): Descreva a decomposição do imposto (IBS vs CBS) e o impacto no preço de venda.
-    4. OTIMIZAÇÃO LEGAL ("legalOptimizations"): Liste 3 estratégias de elisão fiscal (legal) para reduzir a carga, como homologação de fornecedores que dão crédito cheio e gestão de resíduos/insumos.
-    5. ROTEIRO ("strategicRoadmap"): Ações práticas e densas com foco em governança fiscal.
+    1. Seja matemático e direto. Use os valores de R$ informados.
+    2. Calcule o volume de créditos (27,5% sobre compras e insumos) e como eles abatem o débito bruto.
+    3. O tom deve ser profissional: "Como Auditor Fiscal e Consultor, analiso que..."
+    4. IMPORTANTE: Retorne APENAS o JSON, sem textos explicativos fora do JSON.
 
-    IMPORTANTE: O texto deve ser rico, profissional e encorajador, mostrando como a lei permite pagar menos se bem gerida.
-
-    RETORNE EM JSON:
+    ESTRUTURA JSON OBRIGATÓRIA (VALORES NUMÉRICOS):
     {
       "monthlyRevenue": ${data.monthlyRevenue},
       "simplesTotal": number,
@@ -33,40 +26,82 @@ export const calculateTaxComparison = async (data: TaxData): Promise<ComparisonR
       "savings": number,
       "annualSavings": number,
       "recommendation": "SIMPLES" | "REFORMA",
-      "analysis": "texto longo",
-      "technicalDetails": "detalhamento técnico dos tributos",
+      "analysis": "Texto robusto",
+      "technicalDetails": "Detalhamento técnico",
       "ibsAmount": number,
       "cbsAmount": number,
       "creditsTaken": number,
       "effectiveRateSimples": ${data.customSimplesRate},
       "effectiveRateReform": number,
       "healthScore": number,
-      "legalOptimizations": [{"title": string, "howToImplement": string, "benefitExpected": string}],
-      "strategicRoadmap": [{"title": string, "description": string, "impactLevel": "ALTO" | "MÉDIO" | "BAIXO"}]
+      "legalOptimizations": [{"title": "string", "howToImplement": "string", "benefitExpected": "string"}],
+      "strategicRoadmap": [{"title": "string", "description": "string", "impactLevel": "ALTO" | "MÉDIO" | "BAIXO"}]
     }
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        temperature: 0.2,
+    const response = await fetch('https://text.pollinations.ai/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: 'Você é um consultor tributário especialista que responde exclusivamente em JSON puro e válido.' },
+          { role: 'user', content: prompt }
+        ],
+        model: 'openai',
+        jsonMode: true
+      }),
     });
 
-    const result = JSON.parse(response.text || "{}");
-    return { ...result, sector: data.sector } as ComparisonResult;
+    const textResponse = await response.text();
+    
+    // Tenta extrair o JSON caso a IA envie markdown ou texto extra
+    const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
+    const jsonStr = jsonMatch ? jsonMatch[0] : textResponse;
+    
+    const parsed = JSON.parse(jsonStr);
+
+    // Sanitização defensiva para garantir que nenhum campo numérico seja undefined/null
+    // Isso evita o erro "toFixed of undefined" no componente React
+    const sanitizedResult: ComparisonResult = {
+      monthlyRevenue: Number(parsed.monthlyRevenue || data.monthlyRevenue || 0),
+      simplesTotal: Number(parsed.simplesTotal || 0),
+      reformTotal: Number(parsed.reformTotal || 0),
+      savings: Number(parsed.savings || 0),
+      annualSavings: Number(parsed.annualSavings || 0),
+      recommendation: parsed.recommendation === 'SIMPLES' ? 'SIMPLES' : 'REFORMA',
+      analysis: String(parsed.analysis || "Análise indisponível no momento."),
+      technicalDetails: String(parsed.technicalDetails || "Detalhes técnicos não fornecidos."),
+      ibsAmount: Number(parsed.ibsAmount || 0),
+      cbsAmount: Number(parsed.cbsAmount || 0),
+      creditsTaken: Number(parsed.creditsTaken || 0),
+      effectiveRateSimples: Number(parsed.effectiveRateSimples || data.customSimplesRate || 0),
+      effectiveRateReform: Number(parsed.effectiveRateReform || 0),
+      healthScore: Number(parsed.healthScore || 0),
+      sector: data.sector,
+      strategicRoadmap: Array.isArray(parsed.strategicRoadmap) ? parsed.strategicRoadmap : [],
+      legalOptimizations: Array.isArray(parsed.legalOptimizations) ? parsed.legalOptimizations : []
+    };
+
+    return sanitizedResult;
   } catch (error) {
-    console.error("Erro na consultoria técnica:", error);
-    // Fallback estruturado se a IA falhar
+    console.error("Erro na consultoria técnica via Pollinations:", error);
+    
+    // Fallback Matemático Robusto (Garante que a tela nunca fique branca)
     const sRate = (data.customSimplesRate || 10.81) / 100;
-    const rRate = 0.275;
+    const standardRate = 0.275;
     const simplesTotal = data.monthlyRevenue * sRate;
-    const credits = (data.monthlyPurchases + data.otherInputs) * rRate;
-    const reformTotal = (data.monthlyRevenue * rRate) - credits;
+    
+    const taxableInputs = data.monthlyPurchases + data.otherInputs;
+    const credits = taxableInputs * standardRate;
+    const grossReform = data.monthlyRevenue * standardRate;
+    const reformTotal = grossReform - credits;
+    
+    const isReformaBetter = reformTotal < simplesTotal;
     const savings = Math.abs(simplesTotal - reformTotal);
+    const effReform = (reformTotal / data.monthlyRevenue) * 100;
 
     return {
       monthlyRevenue: data.monthlyRevenue,
@@ -76,19 +111,22 @@ export const calculateTaxComparison = async (data: TaxData): Promise<ComparisonR
       savings,
       annualSavings: savings * 12,
       effectiveRateSimples: sRate * 100,
-      effectiveRateReform: (reformTotal / data.monthlyRevenue) * 100,
-      healthScore: 80,
-      recommendation: simplesTotal < reformTotal ? 'SIMPLES' : 'REFORMA',
-      analysis: `A análise demonstra que a transição para o IBS/CBS altera a dinâmica competitiva. No modelo atual (Simples), o imposto incide sobre a receita bruta sem direito a créditos significativos. Na Reforma, a não-cumulatividade permite que os créditos sobre insumos reduzam a carga final.`,
-      technicalDetails: `O CBS (Federal) e o IBS (Subnacional) somam 27,5%. O diferencial está na apropriação de R$ ${credits.toLocaleString()} em créditos mensais.`,
-      ibsAmount: reformTotal * 0.6,
-      cbsAmount: reformTotal * 0.4,
+      effectiveRateReform: effReform,
+      healthScore: 85,
+      recommendation: isReformaBetter ? 'REFORMA' : 'SIMPLES',
+      analysis: `Como Auditor Fiscal e Consultor, analiso que a estrutura de custos da sua empresa apresenta um cenário onde a ${isReformaBetter ? 'migração para o regime de não-cumulatividade plena (IVA Dual) supera a eficiência do Simples Nacional' : 'permanência no Simples Nacional ainda se mostra matematicamente superior'}. No modelo atual, você é tributado sobre a receita bruta de R$ ${data.monthlyRevenue.toLocaleString()}. Com a PEC 45/2019, a lógica inverte-se para o Valor Adicionado. Dado que seus insumos creditáveis (R$ ${taxableInputs.toLocaleString()}) representam uma parcela relevante do faturamento, o volume de créditos gerados (R$ ${credits.toLocaleString()}) abate drasticamente o débito do imposto bruto.`,
+      technicalDetails: `Decomposição Técnica: IBS (17.7%) e CBS (8.8%) totalizando 27,5%. Créditos totais apurados: R$ ${credits.toLocaleString()}.`,
+      ibsAmount: reformTotal * 0.64,
+      cbsAmount: reformTotal * 0.36,
       creditsTaken: credits,
       legalOptimizations: [
-        { title: "Gestão de Créditos de Insumos", howToImplement: "Certificar-se de que 100% dos fornecedores são emitentes de NF-e e estão em conformidade para repasse de crédito.", benefitExpected: "Redução direta de 27,5% no custo de aquisição tributária." }
+        { title: "Saneamento de Fornecedores", howToImplement: "Substituir fornecedores informais por parceiros que garantam o repasse de 27,5% em créditos de IBS/CBS.", benefitExpected: "Redução de custo líquido em 27,5% nas compras." },
+        { title: "Segregação de Insumos", howToImplement: "Auditagem rigorosa de notas fiscais de serviços tomados para aproveitamento integral.", benefitExpected: "Aumento do fluxo de caixa via créditos financeiros." }
       ],
       strategicRoadmap: [
-        { title: "REVISÃO DA CADEIA DE SUPRIMENTOS", description: "Avaliar se fornecedores atuais permitem a recuperação total de créditos de IBS/CBS.", impactLevel: "ALTO" }
+        { title: "AUDITORIA DA CADEIA", description: "Mapear quais fornecedores atuais estão no Simples Nacional e recalcular o markup removendo o 'custo oculto'.", impactLevel: "ALTO" },
+        { title: "ADADEQUAÇÃO DO ERP", description: "Atualizar o sistema de faturamento para suportar o Split Payment e a tributação 'por fora'.", impactLevel: "ALTO" },
+        { title: "REPRECIFICAÇÃO ESTRATÉGICA", description: "Recalcular preços considerando a desoneração dos insumos e o destaque do IBS/CBS na NF-e.", impactLevel: "MÉDIO" }
       ]
     };
   }
