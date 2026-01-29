@@ -116,7 +116,7 @@ const TaxForm: React.FC<{ onCalculate: (data: TaxData) => void, loading: boolean
                 <input
                   type="number"
                   step="0.01"
-                  className="w-full px-6 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:border-emerald-500 outline-none font-bold"
+                  className="w-full px-6 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:border-emerald-500 outline-none font-bold text-slate-800"
                   value={formData.customSimplesRate}
                   onChange={(e) => setFormData({...formData, customSimplesRate: Number(e.target.value)})}
                 />
@@ -125,7 +125,7 @@ const TaxForm: React.FC<{ onCalculate: (data: TaxData) => void, loading: boolean
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Outros Custos NF-e</label>
                 <input
                   type="number"
-                  className="w-full px-6 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:border-emerald-500 outline-none font-bold"
+                  className="w-full px-6 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:border-emerald-500 outline-none font-bold text-slate-800"
                   value={formData.otherInputs}
                   onChange={(e) => setFormData({...formData, otherInputs: Number(e.target.value)})}
                 />
@@ -137,7 +137,7 @@ const TaxForm: React.FC<{ onCalculate: (data: TaxData) => void, loading: boolean
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Folha Salarial (Total)</label>
                 <input
                   type="number"
-                  className="w-full px-6 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:border-emerald-500 outline-none font-bold"
+                  className="w-full px-6 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:border-emerald-500 outline-none font-bold text-slate-800"
                   value={formData.payroll}
                   onChange={(e) => setFormData({...formData, payroll: Number(e.target.value)})}
                 />
@@ -147,7 +147,7 @@ const TaxForm: React.FC<{ onCalculate: (data: TaxData) => void, loading: boolean
                 <input
                   type="number"
                   placeholder="Ex: 5000"
-                  className="w-full px-6 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:border-emerald-500 outline-none font-bold"
+                  className="w-full px-6 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:border-emerald-500 outline-none font-bold text-slate-800"
                   onChange={(e) => setFormData({...formData, otherInputs: formData.otherInputs + Number(e.target.value)})}
                 />
               </div>
