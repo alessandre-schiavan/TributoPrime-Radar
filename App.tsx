@@ -11,7 +11,7 @@ import { TaxData, ComparisonResult, BusinessSector, StrategicAction, StrategicPo
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { sb, APP_ID } from './services/supabaseClient';
 
-const formatBRL = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+const formatBRL = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(val) || 0);
 
 const translateError = (err: string) => {
   const lowerErr = err.toLowerCase();
@@ -61,27 +61,36 @@ const LogoutModal: React.FC<{ isOpen: boolean, onCancel: () => void, onConfirm: 
 };
 
 // --- ROADMAP PHASE MODAL ---
-const PhaseModal: React.FC<{ phase: StrategicPoint | null, onClose: () => void }> = ({ phase, onClose }) => {
-  if (!phase) return null;
+const PhaseModal: React.FC<{ phase: StrategicPoint | null, index: number | null, onClose: () => void }> = ({ phase, index, onClose }) => {
+  if (!phase || index === null) return null;
+
+  // Configuração fixa por posição
+  const pos = index % 3;
+  const config = [
+    { label: 'ALTO', bgHeader: 'bg-red-50 border-red-100', iconBg: 'bg-red-600', actionNumBg: 'bg-red-100 text-red-600' },
+    { label: 'MÉDIO', bgHeader: 'bg-yellow-50 border-yellow-100', iconBg: 'bg-yellow-500', actionNumBg: 'bg-yellow-100 text-yellow-600' },
+    { label: 'BAIXO', bgHeader: 'bg-green-50 border-green-100', iconBg: 'bg-green-600', actionNumBg: 'bg-green-100 text-green-600' }
+  ][pos];
+
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl animate-in zoom-in duration-300">
       <div className="bg-white rounded-[3rem] w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border-4 border-white/20">
-        <div className={`p-8 flex items-center justify-between border-b shrink-0 ${phase.impactLevel === 'ALTO' ? 'bg-rose-50 border-rose-100' : phase.impactLevel === 'MÉDIO' ? 'bg-blue-50 border-blue-100' : 'bg-emerald-50 border-emerald-100'}`}>
+        <div className={`p-8 flex items-center justify-between border-b shrink-0 ${config.bgHeader}`}>
           <div className="flex items-center gap-6">
-            <div className={`w-16 h-16 rounded-3xl flex items-center justify-center text-white shadow-xl ${phase.impactLevel === 'ALTO' ? 'bg-rose-600' : phase.impactLevel === 'MÉDIO' ? 'bg-blue-600' : 'bg-emerald-600'}`}><Rocket size={32}/></div>
+            <div className={`w-16 h-16 rounded-3xl flex items-center justify-center text-white shadow-xl ${config.iconBg}`}><Rocket size={32}/></div>
             <div className="space-y-1">
               <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none">{phase.title}</h3>
-              <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">{phase.description}</p>
+              <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">IMPACTO {config.label} IDENTIFICADO</p>
             </div>
           </div>
-          <button onClick={onClose} className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center hover:bg-rose-600 transition-colors shadow-lg group">
+          <button onClick={onClose} className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg group">
             <X size={24} className="group-hover:rotate-90 transition-transform" />
           </button>
         </div>
         <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar flex-1 bg-slate-50/50 space-y-6">
           {phase.actions.map((action, idx) => (
             <div key={idx} className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 flex gap-6 md:gap-8 items-start group hover:border-emerald-500 transition-all shadow-sm hover:shadow-xl">
-              <div className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center font-black text-lg shrink-0 shadow-inner ${phase.impactLevel === 'ALTO' ? 'bg-rose-100 text-rose-600' : phase.impactLevel === 'MÉDIO' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>#{idx + 1}</div>
+              <div className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center font-black text-lg shrink-0 shadow-inner ${config.actionNumBg}`}>#{idx + 1}</div>
               <div className="space-y-4 flex-1">
                 <h4 className="text-lg md:text-xl font-black text-slate-950 uppercase tracking-tighter leading-none">{action.task}</h4>
                 <p className="text-slate-600 font-bold text-xs md:text-sm leading-relaxed">{action.description}</p>
@@ -353,19 +362,22 @@ const ReportView: React.FC<{ result: ComparisonResult }> = ({ result }) => {
   const isMigrate = result.recommendation === 'REFORMA';
   const [activePhaseIndex, setActivePhaseIndex] = useState<number | null>(null);
   
-  // Gráfico 12 meses (ÚLTIMO LUGAR)
+  // Garantir que os valores sejam numéricos antes de usar toFixed
+  const safeRateSimples = Number(result.effectiveRateSimples) || 0;
+  const safeRateReform = Number(result.effectiveRateReform) || 0;
+  const safeAnnualSavings = Number(result.annualSavings) || 0;
+
   const chartData = Array.from({ length: 12 }, (_, i) => ({
     name: `Mês ${i + 1}`,
-    Simples: result.simplesTotal * (1 + (Math.random() * 0.05 - 0.025)),
-    Reforma: result.reformTotal * (1 + (Math.random() * 0.05 - 0.025))
+    Simples: Number(result.simplesTotal) * (1 + (Math.random() * 0.05 - 0.025)),
+    Reforma: Number(result.reformTotal) * (1 + (Math.random() * 0.05 - 0.025))
   }));
 
-  // Capital Acumulado 5 Anos (VALORES REAIS SINCRONIZADOS)
   const fiveYearData = Array.from({ length: 5 }, (_, i) => {
     const year = i + 1;
     return {
       name: `Ano ${year}`,
-      Economia: result.annualSavings * year
+      Economia: safeAnnualSavings * year
     };
   });
 
@@ -401,7 +413,7 @@ const ReportView: React.FC<{ result: ComparisonResult }> = ({ result }) => {
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16"></div>
             <div className="space-y-4 text-center">
                <p className="text-[10px] md:text-[11px] font-black text-slate-500 uppercase tracking-[0.4em]">SIMPLES NACIONAL</p>
-               <p className="text-6xl md:text-8xl font-black tracking-tighter leading-none">{result.effectiveRateSimples.toFixed(2)}<span className="text-2xl md:text-3xl text-slate-600">%</span></p>
+               <p className="text-6xl md:text-8xl font-black tracking-tighter leading-none">{safeRateSimples.toFixed(2)}<span className="text-2xl md:text-3xl text-slate-600">%</span></p>
                <p className="text-[9px] md:text-[10px] font-black text-slate-600 uppercase tracking-widest">ALÍQUOTA EFETIVA REAL</p>
             </div>
           </div>
@@ -409,16 +421,16 @@ const ReportView: React.FC<{ result: ComparisonResult }> = ({ result }) => {
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
             <div className="space-y-4 text-center">
                <p className="text-[10px] md:text-[11px] font-black text-emerald-300 uppercase tracking-[0.4em]">REFORMA (IBS/CBS)</p>
-               <p className="text-6xl md:text-8xl font-black tracking-tighter leading-none text-white">{result.effectiveRateReform.toFixed(2)}<span className="text-2xl md:text-3xl text-emerald-400">%</span></p>
+               <p className="text-6xl md:text-8xl font-black tracking-tighter leading-none text-white">{safeRateReform.toFixed(2)}<span className="text-2xl md:text-3xl text-emerald-400">%</span></p>
                <p className="text-[9px] md:text-[10px] font-black text-emerald-200 uppercase tracking-widest">LÍQUIDO ESTIMADO C/ CRÉDITOS</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 3. OTIMIZAÇÃO LEGAL E PERFORMANCE (CORREÇÃO DE LAYOUT) */}
+      {/* 3. OTIMIZAÇÃO LEGAL E PERFORMANCE */}
       <div className="bg-slate-950 p-6 md:p-12 lg:p-16 rounded-[4rem] shadow-2xl space-y-12 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full bg-emerald-500/5 pointer-events-none"></div>
+        <div className="absolute top-0 left-0 w-full h-full bg-emerald-50/5 pointer-events-none"></div>
         <div className="flex flex-col md:flex-row md:items-center gap-6 relative z-10">
           <div className="w-14 h-14 md:w-18 lg:w-20 bg-emerald-600 text-white rounded-[1.5rem] lg:rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-emerald-500/20 shrink-0"><Gavel size={32}/></div>
           <div className="space-y-1">
@@ -450,37 +462,57 @@ const ReportView: React.FC<{ result: ComparisonResult }> = ({ result }) => {
         </div>
       </div>
 
-      {/* 4. ROTEIRO DE TRANSIÇÃO (CORREÇÃO DE TEXTOS) */}
+      {/* 4. ROTEIRO DE TRANSIÇÃO (15 AÇÕES) */}
       <div className="bg-white p-10 md:p-14 rounded-[4rem] shadow-xl border border-slate-100 space-y-12">
         <div className="flex items-center gap-4 text-emerald-600">
            <Target size={24} />
            <h4 className="text-3xl md:text-4xl font-black uppercase tracking-tighter leading-none">ROTEIRO DE TRANSIÇÃO (15 AÇÕES)</h4>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10">
-          {result.strategicRoadmap?.map((point, i) => (
-            <button 
-              key={i}
-              onClick={() => setActivePhaseIndex(i)}
-              className={`group relative p-10 md:p-12 rounded-[3.5rem] border shadow-sm transition-all text-left flex flex-col justify-between h-64 md:h-72 overflow-hidden hover:scale-105 active:scale-95 ${point.impactLevel === 'ALTO' ? 'bg-rose-50 border-rose-100' : point.impactLevel === 'MÉDIO' ? 'bg-blue-50 border-blue-100' : 'bg-emerald-50 border-emerald-100'}`}
-            >
-              <div className="space-y-3 relative z-10">
-                <span className={`px-5 py-2 rounded-full font-black text-[10px] uppercase tracking-widest text-white shadow-lg inline-block ${point.impactLevel === 'ALTO' ? 'bg-rose-600' : point.impactLevel === 'MÉDIO' ? 'bg-blue-600' : 'bg-emerald-600'}`}>
-                  {point.impactLevel} IMPACTO
-                </span>
-                <h5 className="text-3xl md:text-4xl font-black uppercase text-slate-900 tracking-tighter leading-[1] mt-4">{point.title}</h5>
-              </div>
-              <div className="flex items-center gap-3 text-slate-900 font-black text-[11px] uppercase tracking-widest border-t border-black/5 pt-8 relative z-10 mt-auto">
-                Abrir Painel <ArrowRight size={16} className="group-hover:translate-x-2 transition-transform" />
-              </div>
-              <div className="absolute -top-6 -right-6 p-8 opacity-5 group-hover:opacity-10 group-hover:scale-125 transition-all text-slate-950 pointer-events-none">
-                 <Rocket size={140} />
-              </div>
-            </button>
-          ))}
+          {result.strategicRoadmap?.map((point, i) => {
+            // Configuração fixa baseada na posição (Esquerda=0, Meio=1, Direita=2)
+            const pos = i % 3;
+            const config = [
+              { label: 'ALTO', colorClass: 'bg-rose-600', textClass: 'text-rose-600', borderClass: 'border-rose-100', dashedClass: 'border-rose-200', bgClass: 'bg-rose-50' },
+              { label: 'MÉDIO', colorClass: 'bg-yellow-500', textClass: 'text-yellow-600', borderClass: 'border-yellow-100', dashedClass: 'border-yellow-200', bgClass: 'bg-yellow-50' },
+              { label: 'BAIXO', colorClass: 'bg-emerald-600', textClass: 'text-emerald-600', borderClass: 'border-emerald-100', dashedClass: 'border-emerald-200', bgClass: 'bg-emerald-50' }
+            ][pos];
+
+            return (
+              <button 
+                key={i}
+                onClick={() => setActivePhaseIndex(i)}
+                className={`group relative p-10 md:p-12 rounded-[3.5rem] border shadow-sm transition-all text-left flex flex-col justify-between h-[420px] overflow-hidden hover:scale-105 active:scale-95 ${config.bgClass} ${config.borderClass}`}
+              >
+                <div className="space-y-4 relative z-10">
+                  <span className={`px-5 py-2 rounded-full font-black text-[10px] uppercase tracking-widest text-white shadow-lg inline-block ${config.colorClass}`}>
+                    IMPACTO
+                  </span>
+                  
+                  <div className={`bg-white/60 backdrop-blur-sm border-2 border-dashed p-6 rounded-[2rem] min-h-[160px] flex flex-col items-center justify-center text-center ${config.dashedClass}`}>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">NÍVEL DE IMPACTO</p>
+                    <p className={`text-5xl font-black uppercase tracking-tighter leading-none ${config.textClass}`}>
+                      {config.label}
+                    </p>
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tight mt-2">IDENTIFICADO NA OPERAÇÃO TRIBUTÁRIA</p>
+                  </div>
+
+                  <h5 className="text-3xl md:text-4xl font-black uppercase text-slate-900 tracking-tighter leading-[1] mt-2">{point.title}</h5>
+                </div>
+                
+                <div className="flex items-center gap-3 text-slate-900 font-black text-[11px] uppercase tracking-widest border-t border-black/5 pt-8 relative z-10 mt-auto">
+                  Abrir Painel <ArrowRight size={16} className="group-hover:translate-x-2 transition-transform" />
+                </div>
+                <div className="absolute -top-6 -right-6 p-8 opacity-5 group-hover:opacity-10 group-hover:scale-125 transition-all text-slate-950 pointer-events-none">
+                   <Rocket size={140} />
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* 5. CAPITAL ACUMULADO EM 5 ANOS (VALORES REAIS SINCRONIZADOS) */}
+      {/* 5. CAPITAL ACUMULADO EM 5 ANOS */}
       <div className="bg-white p-10 md:p-14 rounded-[4rem] shadow-xl border border-slate-100 space-y-12">
         <div className="flex items-center gap-4 text-emerald-600">
            <TrendingUp size={24} />
@@ -507,11 +539,11 @@ const ReportView: React.FC<{ result: ComparisonResult }> = ({ result }) => {
           </ResponsiveContainer>
         </div>
         <div className="text-center">
-           <h4 className="text-slate-900 font-black text-2xl md:text-3xl uppercase tracking-tighter italic">ECONOMIA TOTAL EM 5 ANOS: <span className="text-3xl md:text-4xl text-emerald-600 block sm:inline">{formatBRL(result.annualSavings * 5)}</span></h4>
+           <h4 className="text-slate-900 font-black text-2xl md:text-3xl uppercase tracking-tighter italic">ECONOMIA TOTAL EM 5 ANOS: <span className="text-3xl md:text-4xl text-emerald-600 block sm:inline">{formatBRL(safeAnnualSavings * 5)}</span></h4>
         </div>
       </div>
 
-      {/* 6. IMPACTO PROJETADO 12 MESES (ÚLTIMO LUGAR) */}
+      {/* 6. IMPACTO PROJETADO 12 MESES */}
       <div className="bg-white p-10 md:p-14 rounded-[4rem] shadow-xl border border-slate-100 space-y-12">
         <div className="flex items-center gap-4 text-emerald-600">
            <BarChart3 size={24} />
@@ -547,6 +579,7 @@ const ReportView: React.FC<{ result: ComparisonResult }> = ({ result }) => {
       {/* MODAL ESTRATÉGICO */}
       <PhaseModal 
         phase={activePhaseIndex !== null ? result.strategicRoadmap[activePhaseIndex] : null} 
+        index={activePhaseIndex}
         onClose={() => setActivePhaseIndex(null)} 
       />
     </div>
